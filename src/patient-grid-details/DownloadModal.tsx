@@ -34,13 +34,51 @@ export function DownloadModal({ patientGridId, isOpen, onClose, refreshGrid }: D
       columnNamesToInclude,
       patientDetailsGroupHeader,
     );
-
-    const sheet = xlsx.utils.json_to_sheet(spreadsheetData, { skipHeader: true });
+    //split data into different tabs
+    const input: string[][] = spreadsheetData;
+    // create a workbook object
     const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, sheet, patientGrid.name);
-    xlsx.writeFile(wb, fileName);
+    //logic to calculate column ranges
+    const columnRange: Array<Array<number>> = [];
+    let start = 0;
+    let end = 1;
+    for (let i = 1; i < input[0].length; i++) {
+      if (input[0][i] === null || input[0][i] === '') {
+        end++;
+      } else {
+        const rangeList: Array<number> = [];
+        rangeList.push(start);
+        rangeList.push(end - 1);
+        start = end;
+        end++;
+        columnRange.push(rangeList);
+      }
+    }
+    const lastrangeList: Array<number> = [];
+    lastrangeList.push(start);
+    lastrangeList.push(end);
+    columnRange.push(lastrangeList);
+    // loop over column ranges and create corresponding tabs
+    let flag = true;
+    for (let i = 0; i < columnRange.length; i++) {
+      let ws: xlsx.WorkSheet = xlsx.utils.aoa_to_sheet([]);
+      const [start, end] = columnRange[i];
+      if (flag) {
+        for (let i = 0; i < 4; i++) {
+          const [start, end] = columnRange[i];
+          const part = input.map((row) => row.slice(start, end + 1));
+          ws = xlsx.utils.aoa_to_sheet(part);
+        }
+        flag = false;
+      }
+      const part = input.map((row) => row.slice(start, end + 1));
+      ws = xlsx.utils.aoa_to_sheet(part);
+      xlsx.utils.book_append_sheet(wb, ws, `Tab${i + 1}`);
+    }
+    xlsx.writeFile(wb, 'output.xlsx');
     onClose();
   };
+
   const saveHandler = async () => {
     await saveChanges().then(() => {
       refreshGrid();
